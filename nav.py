@@ -6,7 +6,8 @@ RILEY ANDERSON
 from math import acos, cos, sqrt, degrees, pi
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String, Float32MultiArray, Twist
+from std_msgs.msg import String, Float32MultiArray
+from geometry_msgs.msg import Twist
 class Planner(Node):
     def __init__(self):
         # Initialize node with name 'Listener'
