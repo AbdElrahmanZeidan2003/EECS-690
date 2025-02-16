@@ -33,7 +33,7 @@ class Planner(Node):
 
 #make a new list with tuples [turn, drive]
     
-    def make_drive_commands(coords):
+    def make_drive_commands(self, coords):
         drive_commands = []
         for i in coords:
             #first tuple is command
