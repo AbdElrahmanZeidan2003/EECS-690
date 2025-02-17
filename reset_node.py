@@ -50,7 +50,7 @@ class ResetNode(Node):
             self.get_logger().info('Reset complete! Robot is at initial pose.')
         else:
             cmd_vel = Twist()
-            cmd_vel.linear.x = 0.2 * position_error
+            cmd_vel.linear.x = 0.2 * position_error  # Simple proportional control
             self.cmd_vel_pub.publish(cmd_vel)
             self.get_logger().info('Moving towards initial position.')
 
