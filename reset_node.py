@@ -3,52 +3,64 @@ from rclpy.node import Node
 from std_msgs.msg import Empty
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from tf_transformations import euler_from_quaternion
 import numpy as np
 
 class ResetNode(Node):
     def __init__(self):
         super().__init__('reset_node')
-        self.subscription = self.create_subscription(
+        # Subscriptions
+        self.attack_sub = self.create_subscription(
             Empty, '/attack_complete', self.attack_complete_callback, 10)
-        self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
-        self.initial_pose = None
-        self.current_pose = None
-        self.get_logger().info('Reset node is ready and waiting for attack to complete.')
+        self.odom_sub = self.create_subscription(
+            Odometry, '/odom', self.odom_callback, 10)
+        
+        # Publisher for robot motion commands
+        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        
+        # Variables to hold position data
+        self.initial_pose = None  # To store the initial position of the robot
+        self.current_pose = None  # To store the current position of the robot continuously updated
+        
+        # State control
+        self.position_capture_enabled = False  # Controls when to update the initial position
+
+        self.get_logger().info('Reset node is initialized and waiting for signals.')
 
     def attack_complete_callback(self, msg):
-        self.get_logger().info('Attack complete received. Starting reset process.')
-        if self.initial_pose is None:  # Ensure we have an initial pose to move to
-            self.get_logger().info('Initial pose not set, cannot reset.')
-        else:
-            self.move_to_initial()
+        # Triggered when the attack is confirmed complete
+        self.get_logger().info('Attack complete received. Ready to capture initial position post-spin.')
+        self.position_capture_enabled = True  # Enable capturing of new initial position
 
     def odom_callback(self, msg):
-        if self.initial_pose is None:
-            self.initial_pose = msg.pose.pose
-            self.get_logger().info('Initial pose saved!')
+        # Continuously updates current position and potentially updates initial position
         self.current_pose = msg.pose.pose
+        if self.position_capture_enabled:
+            self.initial_pose = msg.pose.pose
+            self.get_logger().info('Initial pose updated post-attack.')
+            self.position_capture_enabled = False  # Reset to avoid continual updates
 
     def move_to_initial(self):
+        # Calculate the distance and angle to the initial position and move towards it
         dx = self.initial_pose.position.x - self.current_pose.position.x
         dy = self.initial_pose.position.y - self.current_pose.position.y
         position_error = np.sqrt(dx**2 + dy**2)
 
-        if position_error < 0.1:  # If close to the initial pose, stop moving
+        if position_error < 0.1:  # If close enough, stop moving
             self.stop_moving()
             self.get_logger().info('Reset complete! Robot is at initial pose.')
         else:
             cmd_vel = Twist()
             cmd_vel.linear.x = 0.2 * position_error
-            self.publisher.publish(cmd_vel)
+            self.cmd_vel_pub.publish(cmd_vel)
             self.get_logger().info('Moving towards initial position.')
 
     def stop_moving(self):
-        cmd_vel = Twist()  # Stop the robot
+        # Stops the robot by sending zero velocities
+        cmd_vel = Twist()
         cmd_vel.linear.x = 0.0
         cmd_vel.angular.z = 0.0
-        self.publisher.publish(cmd_vel)
+        self.cmd_vel_pub.publish(cmd_vel)
+        self.get_logger().info('Movement stopped.')
 
 def main(args=None):
     rclpy.init(args=args)
