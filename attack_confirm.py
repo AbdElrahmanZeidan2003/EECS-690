@@ -12,75 +12,64 @@ class AttackConfirmNode(Node):
     
     def __init__(self):
         super().__init__('attack_confirm')
+
         # Subscriber to robot camera feed
         self.subscription = self.create_subscription(
             Image, '/camera/image_raw', self.image_callback, 10)
-        # Publisher for movement commands to /cmd_vel
+
+        # Publishers
         self.publisher_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
-        # Publisher for beep signals upon hit confirmation
         self.publisher_beep = self.create_publisher(String, '/beep_signal', 10)
-        # Publisher for reset transition (Stage 4)
         self.publisher_reset = self.create_publisher(String, '/reset_signal', 10)
-        # OpenCV bridge for converting ROS2 images
+
         self.bridge = CvBridge()
-        # Initial lists for detected red and blue cups
         self.initial_red_cups = []
         self.initial_blue_cups = []
+        self.previous_red_cups = []
 
     def image_callback(self, msg):
-        frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")  # Convert ROS2 image message to OpenCV format
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)  # Convert to HSV color space
-        # Define color ranges for red (attack) and blue (avoid) cups
+        frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")  
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)  
+
+        # Define color ranges for red and blue cups
         red_lower = np.array([0, 120, 70])
         red_upper = np.array([10, 255, 255])
         blue_lower = np.array([100, 120, 70])
         blue_upper = np.array([140, 255, 255])
-        # Create masks to detect red and blue objects
+
         red_mask = cv2.inRange(hsv, red_lower, red_upper)
         blue_mask = cv2.inRange(hsv, blue_lower, blue_upper)
-        # Get contours for red and blue objects
+
         red_cups = self.detect_cups(red_mask)
         blue_cups = self.detect_cups(blue_mask)
-        # If this is the first frame, store the initial state
+
         if not self.initial_red_cups:
             self.initial_red_cups = red_cups
         if not self.initial_blue_cups:
             self.initial_blue_cups = blue_cups
 
-        # Check if a red cup has disappeared (successful hit)
-        if len(red_cups) < len(self.initial_red_cups):
+        if len(red_cups) < len(self.previous_red_cups):
             self.get_logger().info("Hit confirmed on a red cup!")
-            # Stop movement briefly
+            self.publisher_beep.publish(String(data="HIT CONFIRM"))
+
             stop_msg = Twist()
             self.publisher_cmd.publish(stop_msg)
-            time.sleep(1.0)  # Pause before continuing
-            # Confirm hit with beep
-            self.publisher_beep.publish(String(data="HIT CONFIRM"))
-            self.initial_red_cups = red_cups  # Update reference list
-            # If all red cups are hit, transition to Reset Mode
+            time.sleep(1.0)
+
+            self.initial_red_cups = red_cups  
+
             if len(self.initial_red_cups) == 0:
                 self.get_logger().info("All targets eliminated! Transitioning to Reset Mode.")
-                self.publisher_beep.publish(String(data="RESET_STAGE"))
                 self.publisher_reset.publish(String(data="START RESET"))
 
-        # Check if a blue cup has been hit (error)
         if len(blue_cups) < len(self.initial_blue_cups):
             self.get_logger().warning("WARNING: Blue cup hit!")
             self.publisher_beep.publish(String(data="ERROR: BLUE CUP HIT"))
-            self.initial_blue_cups = blue_cups  # Update reference list
-        # Display debugging view (optional)
-        cv2.imshow("Frame", frame)
-        cv2.waitKey(1)
+            self.initial_blue_cups = blue_cups  
 
     def detect_cups(self, mask):
         contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        cup_positions = []
-
-        for contour in contours:
-            if cv2.contourArea(contour) > 500:  # Filter out small objects
-                x, y, w, h = cv2.boundingRect(contour)
-                cup_positions.append((x + w // 2, y + h // 2))  # Store center coordinates
-        return cup_positions
+        return [(cv2.boundingRect(c)[0], cv2.boundingRect(c)[1]) for c in contours if cv2.contourArea(c) > 500]
 
 def main(args=None):
     rclpy.init(args=args)  
@@ -90,4 +79,4 @@ def main(args=None):
     rclpy.shutdown()  
 
 if __name__ == '__main__':
-    main()  
+    main()
