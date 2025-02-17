@@ -28,9 +28,11 @@ def generate_launch_description():
             executable='reset_node', 
             name='reset_node', 
             output='screen'),
+        """
         Node(
             package='attack_dog', 
             executable='beep', 
             name='beep_node', 
             output='screen')
+        """
     ])
