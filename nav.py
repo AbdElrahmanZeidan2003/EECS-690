@@ -49,23 +49,7 @@ class Planner(Node):
                 print(f'[{distance}, {ang}]')
                 drive_commands.append([ang, distance])
         return drive_commands
-    """
-    try this if the other doesn't work:
-    
-    def make_drive_commands(self, coords):  # Add self
-    drive_commands = []
-    for i in coords:
-        if i[0] == coords[0][0]:
-            drive_commands.append(i)
-            prev_ang = i[0]
-            prev_dist = i[1]
-        else:
-            # Law of Cosines correction
-            distance = sqrt(i[1]**2 + prev_dist**2 - 2 * i[1] * prev_dist * cos(np.radians(prev_ang - i[0])))
-            ang = degrees(acos((prev_dist**2 + i[1]**2 - distance**2) / (2 * prev_dist * i[1])))
-            drive_commands.append([ang, distance])
-    return drive_commands
-    """
+
     #turn, then go
     def drive(degrees, distance):
         stop_msg = Twist()
