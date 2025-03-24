@@ -1,0 +1,14 @@
+Localization 
+Do I need to build a map based on our arena? 
+
+Steps:
+Build: ros2 launch slam_toolbox online_sync_launch.py
+Save: ros2 run nav2_map_server map_saver_cli -f ~/maps/sumo_arena
+-> Auto create: sumo_arena.pgm
+-> Auto create: sumo_arena.yaml
+
+Move to folder: map_file_name: "/absolute/path/to/sumo/config/sumo_arena.yaml"
+
+Check TF frame: ros2 run tf2_tools view_frames
+Check LIDAR: ros2 topic echo /scan
+

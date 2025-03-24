@@ -11,7 +11,7 @@ def generate_launch_description():
     declare_slam_config_arg = DeclareLaunchArgument(
         'slam_params_file',
         default_value=os.path.join(
-            FindPackageShare('sumo_bot').find('sth - this is supposed to be the main folder ... '),
+            FindPackageShare('sumo').find('sumo'),  # <- Replace with package name (if different)
             'config',
             'localization.yaml'
         ),
@@ -26,8 +26,8 @@ def generate_launch_description():
         parameters=[slam_config]
     )
 
-    wall_proximity_node = Node(
-        package='sth - main package name ',
+    localization_node = Node(
+        package='sumo',  # <- Replace with package name (if different)
         executable='localization',
         name='sumo_localization_node',
         output='screen',
