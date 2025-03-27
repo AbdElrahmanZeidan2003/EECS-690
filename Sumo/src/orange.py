@@ -66,7 +66,7 @@ class Orange(Node):
                     self.publish_twist_message(2.0, 0.0, self.calc_rotation(cx))
             else:
                 self.get_logger().info('No valid orange region found')
-                self.publish_twist_message(0, 0.3, 2)
+                self.publish_twist_message(0.0, 0.0, 2)
         else:
             self.get_logger().info('No orange pixels detected')
         
@@ -115,7 +115,7 @@ class Orange(Node):
         width = msg.width
         height = msg.height
         depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
-        avg_ctr_nine = np.mean(msg.data[width//2][height//2]+msg.data[width//2+1][height//2]+msg.data[width//2][height//2+1]+msg.data[width//2+1][height//2+1]+msg.data[width//2-1][height//2]+msg.data[width//2][height//2-1]+msg.data[width//2-1][height//2-1]+msg.data[width//2-1][height//2+1]+msg.data[width//2+1][height//2-1])
+        avg_ctr_nine = np.mean(depth_image[width//2][height//2]+depth_image[width//2+1][height//2]+depth_image[width//2][height//2+1]+depth_image[width//2+1][height//2+1]+depth_image[width//2-1][height//2]+depth_image[width//2][height//2-1]+depth_image[width//2-1][height//2-1]+depth_image[width//2-1][height//2+1]+depth_image[width//2+1][height//2-1])
         if avg_ctr_nine > collision_threshold:
             self.collision = False
         else:
