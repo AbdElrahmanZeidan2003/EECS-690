@@ -15,7 +15,7 @@ class Orange(Node):
         self.subscription = self.create_subscription(Image, '/ascamera/camera_publisher/rgb0/image', self.image_callback, 1)
         self.bridge = CvBridge()
 
-        self.safety = self.create_subscription(Bool, '/safety', self.safety_callback, 1)
+        self.safety_sub = self.create_subscription(Bool, '/safety', self.safety_callback, 1)
 
         self.drive_pub = self.create_publisher(Twist, '/cmd_vel', 1)
         
@@ -61,12 +61,12 @@ class Orange(Node):
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 self.get_logger().info(f'Center of orange region: ({cx}), Width: {w}')
                 if self.collision == True:
-                    publish_twist_message(-2.0, 0.0, calc_rotation(cx))
+                    self.publish_twist_message(-2.0, 0.0, self.calc_rotation(cx))
                 else:
-                    publish_twist_message(2.0, 0.0, calc_rotation(cx))
+                    self.publish_twist_message(2.0, 0.0, self.calc_rotation(cx))
             else:
                 self.get_logger().info('No valid orange region found')
-                publish_twist_message(0, 0.3, 2)
+                self.publish_twist_message(0, 0.3, 2)
         else:
             self.get_logger().info('No orange pixels detected')
         
@@ -75,50 +75,51 @@ class Orange(Node):
         # cv2.waitKey(1)
 
 
-        def calc_rotation(self, x):
-            #SET HORIZONTAL RESOLUTION
-            resolution = 1080
-            #acceptable portion of frame to be considered 'center'
-            center_range = (1/5) * resolution
-            #distance from center of frame
-            dcenter = x-(resolution/2)
-            #maximum speed of turn
-            max_angular = 4.0
+    def calc_rotation(self, x):
+        #SET HORIZONTAL RESOLUTION
+        resolution = 1080
+        #acceptable portion of frame to be considered 'center'
+        center_range = (1/5) * resolution
+        #distance from center of frame
+        dcenter = x-(resolution/2)
+        #maximum speed of turn
+        max_angular = 4.0
 
-            if abs(dcenter)<=center_range:
-                #avoid div by zero
-                if dcenter == 0:
-                    rotate_speed = 0
-                #point is in center range
-                else:
-                    rotate_speed = (dcenter/8)*max_angular
-
+        if abs(dcenter)<=center_range:
+            #avoid div by zero
+            if dcenter == 0:
+                rotate_speed = 0
+            #point is in center range
             else:
-                rotate_speed = max_angular*(dcenter/4)
-            
-            return rotate_speed
+                rotate_speed = (dcenter/8)*max_angular
+
+        else:
+            rotate_speed = max_angular*(dcenter/4)
+        
+        return rotate_speed
 
 
-        def publish_twist_message(self, forward, horizontal, angular):
-            if self.safety == False:
-                msg = Twist
-                msg.linear.x = horizontal
-                msg.linear.y = forward
-                msg.angular.z = angular
-                self.drive_pub.publish(msg)
-            ang_msg = Float32
-            ang_msg.data = angular
-            self.angle_pub.publish(ang_msg)
+    def publish_twist_message(self, forward, horizontal, angular):
+        if self.safety == False:
+            msg = Twist()
+            msg.linear.y = float(horizontal)
+            msg.linear.x = float(forward)
+            msg.angular.z = float(angular)
+            self.drive_pub.publish(msg)
+        ang_msg = Float32()
+        ang_msg.data = float(angular)
+        self.angle_pub.publish(ang_msg)
 
-        def check_collision(self, msg):
-            collision_threshold = 0.02
-            width = msg.width
-            height = msg.height
-            avg_ctr_nine = (msg.data[width//2][height//2]+msg.data[width//2+1][height//2]+msg.data[width//2][height//2+1]+msg.data[width//2+1][height//2+1]+msg.data[width//2-1][height//2]+msg.data[width//2][height//2-1]+msg.data[width//2-1][height//2-1]+msg.data[width//2-1][height//2+1]+msg.data[width//2+1][height//2-1])/9
-            if avg_ctr_nine > collision_threshold:
-                self.collision = False
-            else:
-                self.collision = True
+    def check_collision(self, msg):
+        collision_threshold = 0.02
+        width = msg.width
+        height = msg.height
+        depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
+        avg_ctr_nine = np.mean(msg.data[width//2][height//2]+msg.data[width//2+1][height//2]+msg.data[width//2][height//2+1]+msg.data[width//2+1][height//2+1]+msg.data[width//2-1][height//2]+msg.data[width//2][height//2-1]+msg.data[width//2-1][height//2-1]+msg.data[width//2-1][height//2+1]+msg.data[width//2+1][height//2-1])
+        if avg_ctr_nine > collision_threshold:
+            self.collision = False
+        else:
+            self.collision = True
 
 
 def main(args=None):
