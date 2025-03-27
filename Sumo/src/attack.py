@@ -17,6 +17,12 @@ class AttackNode(Node):
         self.safety_sub = self.create_subscription(Bool, '/safety', self.safety_callback, 10)
 
         self.bridge = CvBridge()
+    def safety_callback(self, msg):
+        if msg.data == True:
+            self.safety = True
+        else:
+            self.safety = False
+        
     def image_callback(self, msg):
         try:
             # ROS2 image message to OpenCV format
@@ -50,6 +56,35 @@ class AttackNode(Node):
                 self.get_logger().info('No valid orange region found')
         else:
             self.get_logger().info('No orange pixels detected')
+        
+    def drive_to(self, x):
+        #SET HORIZONTAL RESOLUTION
+        resolution = 1080
+        #acceptable portion of frame to be considered 'center'        
+        center_range = (1/5) * resolution
+            #distance from center of frame
+        dcenter = x-(resolution/2)
+        #maximum speed of turn
+        max_angular = 4.0
+
+        if abs(dcenter)<=center_range: 
+            #avoid div by zero
+            if dcenter == 0:
+                rotate_speed = 0
+            #point is in center range
+            else:
+                rotate_speed = (dcenter/8)*max_angular
+
+        else:
+            rotate_speed = max_angular*(dcenter/4)
+            
+        return rotate_speed
+    def publish_twist_message(self, forward, horizontal, angular):
+            msg = Twist
+            msg.linear.x = horizontal
+            msg.linear.y = forward
+            msg.angular.z = angular
+
 
 def main(args=None):
     rclpy.init(args=args)
