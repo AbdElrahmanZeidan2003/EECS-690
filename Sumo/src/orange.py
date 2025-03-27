@@ -74,17 +74,22 @@ class Orange(Node):
             if self.prev_seen and self.prev_cx is not None:
                 if self.prev_cx > 600:
                     self.get_logger().info("Object likely exited on the RIGHT.")
+                    self.publish_twist_message(0.0, 0.0, -1.5)  # turn right
                 elif self.prev_cx < 40:
-                     self.get_logger().info("Object likely exited on the LEFT.")
-    
-            # Reset tracker since object is gone
-                self.prev_seen = False
-                self.prev_cx = None
+                    self.get_logger().info("Object likely exited on the LEFT.")
+                    self.publish_twist_message(0.0, 0.0, 1.5)   # turn left
+                else:
+                    self.publish_twist_message(0.0, 0.0, 2)     # spin in place (default)
 
-    # Stop moving or rotate in place (your original logic)
-                self.publish_twist_message(0.0, 0.0, 2)
-                self.get_logger().info('No orange pixels detected')
-        
+            else:
+                self.publish_twist_message(0.0, 0.0, 2)         # lost without known direction
+
+        # Reset tracker
+            self.prev_seen = False
+            self.prev_cx = None
+
+            self.get_logger().info('No orange pixels detected')
+
         # for debugging
         # cv2.imshow("Orange Mask", mask)
         # cv2.waitKey(1)
