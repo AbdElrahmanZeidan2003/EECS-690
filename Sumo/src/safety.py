@@ -1,14 +1,14 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Bool, Float32, Float32MultiArray
+from std_msgs.msg import Bool, Float32
 from geometry_msgs.msg import Twist
 import numpy as np
 import math
 
-class CombinedSafetyNode(Node):
+class SafetyNode(Node):
     def __init__(self):
-        super().__init__('combined_safety_node')
+        super().__init__('safety_node')
         self.min_safe_distance = 0.3
         self.current_ang = 0.0    # Angle from /ang
         self.in_danger = False
@@ -25,7 +25,7 @@ class CombinedSafetyNode(Node):
     def scan_callback(self, msg):
         # Process raw LiDAR data to extract average distances in four directions
         ranges = np.array(msg.ranges)
-        ranges = np.where(np.isfinite(ranges), ranges, np.nan)  # Replace infs with nan
+        ranges = np.where(np.isfinite(ranges), ranges, np.nan)  
         zones = {
             'front': np.concatenate((ranges[:30], ranges[-30:])),  # 0° and 360°
             'right': ranges[270:300],
