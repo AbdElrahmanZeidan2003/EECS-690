@@ -68,6 +68,7 @@ class Orange(Node):
                 self.get_logger().info('No valid orange region found')
                 self.publish_twist_message(0.0, 0.0, 2)
         else:
+            self.publish_twist_message(0.0, 0.0, 2)
             self.get_logger().info('No orange pixels detected')
         
         # for debugging
@@ -77,7 +78,7 @@ class Orange(Node):
 
     def calc_rotation(self, x):
         #SET HORIZONTAL RESOLUTION
-        resolution = 1080
+        resolution = 640
         #acceptable portion of frame to be considered 'center'
         center_range = (1/5) * resolution
         #distance from center of frame
@@ -94,7 +95,7 @@ class Orange(Node):
                 rotate_speed = (dcenter/8)*max_angular
 
         else:
-            rotate_speed = max_angular*(dcenter/4)
+            rotate_speed = -max_angular*(dcenter/4)
         
         return rotate_speed
 
@@ -111,13 +112,15 @@ class Orange(Node):
         self.angle_pub.publish(ang_msg)
 
     def check_collision(self, msg):
-        collision_threshold = 0.02
+        collision_threshold = 0.1
         width = msg.width
+        self.get_logger.error(width)
         height = msg.height
         depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         avg_ctr_nine = np.mean(depth_image[width//2][height//2]+depth_image[width//2+1][height//2]+depth_image[width//2][height//2+1]+depth_image[width//2+1][height//2+1]+depth_image[width//2-1][height//2]+depth_image[width//2][height//2-1]+depth_image[width//2-1][height//2-1]+depth_image[width//2-1][height//2+1]+depth_image[width//2+1][height//2-1])
         if avg_ctr_nine > collision_threshold:
             self.collision = False
+            self.get_logger.info("COLLISION!!!")
         else:
             self.collision = True
 
@@ -131,3 +134,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
