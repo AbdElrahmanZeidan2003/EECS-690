@@ -9,7 +9,7 @@ class SafetyNode(Node):
         super().__init__('safety_node')
         self.danger_distance = 0.3
         self.last_ang = 0.0
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/controller/cmd_vel', 10)
         self.safety_pub = self.create_publisher(Bool, '/safety', 10)
         self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, 10)
         self.angle_sub = self.create_subscription(Float32, '/ang', self.angle_callback, 10)
