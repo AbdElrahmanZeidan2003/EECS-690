@@ -1,7 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool, Float32
-from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Bool, Float32, Float32MultiArray
 from geometry_msgs.msg import Twist
 import math
 
@@ -9,61 +8,59 @@ class SafetyNode(Node):
     def __init__(self):
         super().__init__('safety_node')
         self.min_safe_distance = 0.3
-        self.target_angle = None
-        self.current_yaw = 0.0  
-        # Subscriptions
-        self.create_subscription(LaserScan, '/scan_raw', self.scan_callback, 10)
-        self.create_subscription(Float32, '/ang', self.angle_callback, 10)
+        self.current_ang = 0.0    # Angle from /ang
+        self.in_danger = False
+        # Subscribers
+        self.create_subscription(Float32MultiArray, '/scan_raw_cleaned', self.scan_callback, 10)
+        self.create_subscription(Float32, '/ang', self.ang_callback, 10)
         # Publishers
         self.safety_pub = self.create_publisher(Bool, '/safety', 10)
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vcl', 10)
-    def angle_callback(self, msg):
-        self.target_angle = msg.data
-    def scan_callback(self, msg: LaserScan):
-        distances = msg.ranges
-        if len(distances) < 4:
-            self.get_logger().warn("Expected 4 distances from /scan_raw")
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+    def ang_callback(self, msg):
+        self.current_ang = msg.data
+    def scan_callback(self, msg):
+        distances = msg.data  # [front, right, back, left]
+        if len(distances) != 4:
+            self.get_logger().warn("Expected 4 distances from scan_raw_cleaned")
             return
-        too_close = any(0.05 < d < self.min_safe_distance for d in distances)
+        # Check for danger
+        self.in_danger = any(d < self.min_safe_distance for d in distances)
+        # Publish /safety 
         safety_msg = Bool()
-        safety_msg.data = too_close
+        safety_msg.data = self.in_danger
         self.safety_pub.publish(safety_msg)
+        # Generate response
         twist = Twist()
-        if too_close:
-            #choose farthest direction
-            max_index = max(range(4), key=lambda i: distances[i])
-            direction_labels = ["front", "right", "back", "left"]
-            self.get_logger().info(f"Too close! Escaping to: {direction_labels[max_index]}")
-            #escape logic
-            if max_index == 0:
+        if self.in_danger:
+            # Pick the farthest direction
+            direction_labels = ['front', 'right', 'back', 'left']
+            safest_index = distances.index(max(distances))
+            safest_dir = direction_labels[safest_index]
+            self.get_logger().warn(f"Too close! Escaping toward: {safest_dir}")
+            # Default motion for each direction
+            if safest_index == 0:  # front
                 twist.linear.x = 0.2
-            elif max_index == 1:
-                twist.angular.z = -1.0
-            elif max_index == 2:
+            elif safest_index == 1:  # right
+                twist.angular.z = -0.5
+            elif safest_index == 2:  # back
                 twist.linear.x = -0.2
-            elif max_index == 3:
-                twist.angular.z = 1.0
-            # Stop if aligned with /ang
-            if self.target_angle is not None:
-                # Simulate current yaw for now 
-                current = self.current_yaw
-                error = self.angle_diff(self.target_angle, current)
-                if abs(error) < 0.1:  # within ~6 degrees
-                    self.get_logger().info("Aligned with attack angle — stopping escape.")
-                    twist.linear.x = 0.0
-                    twist.angular.z = 0.0
+            elif safest_index == 3:  # left
+                twist.angular.z = 0.5
+            #If robot is close to being aligned with target angle - > stop spinning
+            if abs(self.current_ang) < 0.1:
+                self.get_logger().info("Aligned with /ang target — stopping!")
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
         else:
             twist.linear.x = 0.0
             twist.angular.z = 0.0
         self.cmd_pub.publish(twist)
-    def angle_diff(self, a, b):
-        return math.atan2(math.sin(a - b), math.cos(a - b))
-
 def main(args=None):
     rclpy.init(args=args)
     node = SafetyNode()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
 if __name__ == '__main__':
     main()
