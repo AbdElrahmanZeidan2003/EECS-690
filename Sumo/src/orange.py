@@ -64,25 +64,20 @@ class Orange(Node):
                 # bounding box of the largest orange region
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 self.get_logger().info(f'Center of orange region: ({cx}), Width: {w}')
-                if self.collision == True:
-                    self.publish_twist_message(-2.0, 0.0, self.calc_rotation(cx))
-                else:
-                    self.publish_twist_message(2.0, 0.0, self.calc_rotation(cx))
-            else:
-                self.get_logger().info('No orange pixels detected')
-        else:
-            if self.prev_seen and self.prev_cx is not None:
-                if self.prev_cx > 600:
-                    self.get_logger().info("Object likely exited on the RIGHT.")
-                    self.publish_twist_message(0.0, 0.0, -1.5)  # turn right
-                elif self.prev_cx < 40:
-                    self.get_logger().info("Object likely exited on the LEFT.")
-                    self.publish_twist_message(0.0, 0.0, 1.5)   # turn left
-                else:
-                    self.publish_twist_message(0.0, 0.0, 2)     # spin in place (default)
+                if self.prev_seen and self.prev_cx is not None:
+                    if self.prev_cx > 600:
+                        self.get_logger().info("Object likely exited on the RIGHT.")
+                        self.publish_twist_message(0.0, 0.0, -1.5)  # turn right
+                    elif self.prev_cx < 40:
+                        self.get_logger().info("Object likely exited on the LEFT.")
+                        self.publish_twist_message(0.0, 0.0, 1.5)   # turn left
+                    else:
+                        self.publish_twist_message(0.0, 0.0, 2)     # spin in place (default)
 
-            else:
-                self.publish_twist_message(0.0, 0.0, 2)         # lost without known direction
+                else:
+                    self.get_logger().info('No orange pixels detected')
+        else:
+            self.publish_twist_message(0.0, 0.0, 2)         # lost without known direction
 
         # Reset tracker
             self.prev_seen = False
