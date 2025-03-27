@@ -11,7 +11,7 @@ class SafetyNode(Node):
         self.current_ang = 0.0    # Angle from /ang
         self.in_danger = False
         # Subscribers
-        self.create_subscription(Float32MultiArray, '/scan_raw_cleaned', self.scan_callback, 10)
+        self.create_subscription(Float32MultiArray, '/scan_raw', self.scan_callback, 10)
         self.create_subscription(Float32, '/ang', self.ang_callback, 10)
         # Publishers
         self.safety_pub = self.create_publisher(Bool, '/safety', 10)
@@ -21,7 +21,7 @@ class SafetyNode(Node):
     def scan_callback(self, msg):
         distances = msg.data  # [front, right, back, left]
         if len(distances) != 4:
-            self.get_logger().warn("Expected 4 distances from scan_raw_cleaned")
+            self.get_logger().warn("Expected 4 distances from scan_raw")
             return
         # Check for danger
         self.in_danger = any(d < self.min_safe_distance for d in distances)
