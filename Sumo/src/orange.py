@@ -11,28 +11,17 @@ class Orange(Node):
     def __init__(self):
         super().__init__('orange')
         self.safety = False
-        self.subscription = self.create_subscription(
-            Image,
-            '/ascamera/camera_publisher/rgb0/image',
-            self.image_callback,
-            1)
+        self.collision = False
+        self.subscription = self.create_subscription(Image, '/ascamera/camera_publisher/rgb0/image', self.image_callback, 1)
         self.bridge = CvBridge()
 
-        self.safety = self.create_subscription(
-            Bool,
-            '/safety',
-            self.safety_callback,
-            1)
+        self.safety = self.create_subscription(Bool, '/safety', self.safety_callback, 1)
 
-        self.drive_pub = self.create_publisher(
-            Twist,
-            '/cmd_vel',
-            1)
+        self.drive_pub = self.create_publisher(Twist, '/cmd_vel', 1)
         
-        self.angle_pub = self.create_publisher(
-            Float32,
-            '/ang',
-            1)
+        self.angle_pub = self.create_publisher(Float32, '/ang', 1)
+
+        self.depth_sub = self.create_subscription(Image, '/ascamera/camera_publisher/depth0/image', self.check_collision, 1)
         
     def safety_callback(self, msg):
         if msg.data == True:
@@ -71,8 +60,13 @@ class Orange(Node):
                 # bounding box of the largest orange region
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 self.get_logger().info(f'Center of orange region: ({cx}), Width: {w}')
+                if self.collision == True:
+                    publish_twist_message(-2.0, 0.0, calc_rotation(cx))
+                else:
+                    publish_twist_message(2.0, 0.0, calc_rotation(cx))
             else:
                 self.get_logger().info('No valid orange region found')
+                publish_twist_message(0, 0.3, 2)
         else:
             self.get_logger().info('No orange pixels detected')
         
@@ -81,7 +75,7 @@ class Orange(Node):
         # cv2.waitKey(1)
 
 
-        def drive_to(self, x):
+        def calc_rotation(self, x):
             #SET HORIZONTAL RESOLUTION
             resolution = 1080
             #acceptable portion of frame to be considered 'center'
@@ -104,15 +98,27 @@ class Orange(Node):
             
             return rotate_speed
 
-                
-
 
         def publish_twist_message(self, forward, horizontal, angular):
-            msg = Twist
-            msg.linear.x = horizontal
-            msg.linear.y = forward
-            msg.angular.z = angular
-            
+            if self.safety == False:
+                msg = Twist
+                msg.linear.x = horizontal
+                msg.linear.y = forward
+                msg.angular.z = angular
+                self.drive_pub.publish(msg)
+            ang_msg = Float32
+            ang_msg.data = angular
+            self.angle_pub.publish(ang_msg)
+
+        def check_collision(self, msg):
+            collision_threshold = 0.02
+            width = msg.width
+            height = msg.height
+            avg_ctr_nine = (msg.data[width//2][height//2]+msg.data[width//2+1][height//2]+msg.data[width//2][height//2+1]+msg.data[width//2+1][height//2+1]+msg.data[width//2-1][height//2]+msg.data[width//2][height//2-1]+msg.data[width//2-1][height//2-1]+msg.data[width//2-1][height//2+1]+msg.data[width//2+1][height//2-1])/9
+            if avg_ctr_nine > collision_threshold:
+                self.collision = False
+            else:
+                self.collision = True
 
 
 def main(args=None):
