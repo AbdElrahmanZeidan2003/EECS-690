@@ -18,7 +18,6 @@ class SafetyNode(Node):
         self.angle_sub = self.create_subscription(Float32, '/ang', self.angle_callback, 10)
 
     def lidar_callback(self, msg):
-        # Check center 1/3 of the scan for close obstacles
         third = len(msg.ranges) // 3
         front_ranges = msg.ranges[third: 2*third]
         if any(r < self.danger_distance for r in front_ranges if r > 0.05):
