@@ -12,6 +12,8 @@ class Orange(Node):
         super().__init__('orange')
         self.safety = False
         self.collision = False
+        self.prev_seen = True
+        self.prev_cx = None
         self.subscription = self.create_subscription(Image, '/ascamera/camera_publisher/rgb0/image', self.image_callback, 1)
         self.bridge = CvBridge()
 
@@ -56,7 +58,9 @@ class Orange(Node):
             if M['m00'] > 0:
                 cx = int(M['m10'] / M['m00'])
                 #cy = int(M['m01'] / M['m00'])
-                
+                #trackign
+                self.prev_seen = True
+                self.prev_cx = cx                
                 # bounding box of the largest orange region
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 self.get_logger().info(f'Center of orange region: ({cx}), Width: {w}')
@@ -65,17 +69,27 @@ class Orange(Node):
                 else:
                     self.publish_twist_message(2.0, 0.0, self.calc_rotation(cx))
             else:
-                self.get_logger().info('No valid orange region found')
-                self.publish_twist_message(0.0, 0.0, 2)
+                self.get_logger().info('No orange pixels detected')
         else:
-            self.publish_twist_message(0.0, 0.0, 2)
-            self.get_logger().info('No orange pixels detected')
+            if self.prev_seen and self.prev_cx is not None:
+                if self.prev_cx > 600:
+                    self.get_logger().info("Object likely exited on the RIGHT.")
+                elif self.prev_cx < 40:
+                     self.get_logger().info("Object likely exited on the LEFT.")
+    
+            # Reset tracker since object is gone
+                self.prev_seen = False
+                self.prev_cx = None
+
+    # Stop moving or rotate in place (your original logic)
+                self.publish_twist_message(0.0, 0.0, 2)
+                self.get_logger().info('No orange pixels detected')
         
         # for debugging
         # cv2.imshow("Orange Mask", mask)
         # cv2.waitKey(1)
-
-
+    
+    
     def calc_rotation(self, x):
         #SET HORIZONTAL RESOLUTION
         resolution = 640
@@ -134,4 +148,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
