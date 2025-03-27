@@ -7,15 +7,12 @@ from geometry_msgs.msg import Twist
 class SafetyNode(Node):
     def __init__(self):
         super().__init__('safety_node')
-
         # Proximity threshold (in meters)
         self.danger_distance = 0.3
         self.last_ang = 0.0
-
         # Publishers
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.safety_pub = self.create_publisher(Bool, '/safety', 10)
-
         # Subscribers
         self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, 10)
         self.angle_sub = self.create_subscription(Float32, '/ang', self.angle_callback, 10)
@@ -24,7 +21,6 @@ class SafetyNode(Node):
         # Check center 1/3 of the scan for close obstacles
         third = len(msg.ranges) // 3
         front_ranges = msg.ranges[third: 2*third]
-
         if any(r < self.danger_distance for r in front_ranges if r > 0.05):
             self.get_logger().info('TOO CLOSE TO WALL!')
             self.publish_safety(True)
@@ -34,9 +30,7 @@ class SafetyNode(Node):
 
     def angle_callback(self, msg):
         self.last_ang = msg.data
-
     def back_off(self):
-        # Command the robot to move backward and spin
         twist = Twist()
         twist.linear.x = -0.2   # move backward
         twist.angular.z = self.last_ang  # spin based on latest orange angle
