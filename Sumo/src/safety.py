@@ -18,18 +18,20 @@ class SafetyNode(Node):
         self.angle_sub = self.create_subscription(Float32, '/ang', self.angle_callback, 10)
 
     def lidar_callback(self, msg):
-        third = len(msg.ranges) // 3
-        front_ranges = msg.ranges[third: 2*third]
-        if any(r < self.danger_distance for r in front_ranges if r > 0.05):
+        if any(r < self.danger_distance for r in msg.ranges if r > 0.05):
+            passed = (x for x in msg.ranges if x >= 0.05)
+            idx = msg.ranges.index(min(passed))
             self.get_logger().info('TOO CLOSE TO WALL!')
             self.publish_safety(True)
-            self.back_off()
+            self.get_logger().info(f"idx of min:{idx}")
+            self.back_off(idx)
         else:
             self.publish_safety(False)
 
     def angle_callback(self, msg):
         self.last_ang = msg.data
-    def back_off(self):
+
+    def back_off(self, scan_index):
         twist = Twist()
         twist.linear.x = -0.2   # move backward
         twist.angular.z = self.last_ang  # spin based on latest orange angle
