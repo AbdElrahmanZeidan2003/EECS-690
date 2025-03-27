@@ -57,7 +57,9 @@ class Orange(Node):
             if M['m00'] > 0:
                 cx = int(M['m10'] / M['m00'])
                 #cy = int(M['m01'] / M['m00'])
-                
+                #trackign
+                self.prev_seen = True
+                self.prev_cx = cx                
                 # bounding box of the largest orange region
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 self.get_logger().info(f'Center of orange region: ({cx}), Width: {w}')
@@ -77,16 +79,22 @@ class Orange(Node):
                 else:
                     self.publish_twist_message(0.0, 0.0, 2.0)
         else:
+            self.publish_twist_message(0.0, 0.0, 2)         # lost without known direction
+
+        # Reset tracker
+            self.prev_seen = False
+            self.prev_cx = None
+
             self.get_logger().info('No orange pixels detected')
-        
+
         # for debugging
         # cv2.imshow("Orange Mask", mask)
         # cv2.waitKey(1)
-
-
+    
+    
     def calc_rotation(self, x):
         #SET HORIZONTAL RESOLUTION
-        resolution = 1080
+        resolution = 640
         #acceptable portion of frame to be considered 'center'
         center_range = (1/5) * resolution
         #distance from center of frame
@@ -103,7 +111,7 @@ class Orange(Node):
                 rotate_speed = (dcenter/8)*max_angular
 
         else:
-            rotate_speed = max_angular*(dcenter/4)
+            rotate_speed = -max_angular*(dcenter/4)
         
         return rotate_speed
 
@@ -122,12 +130,14 @@ class Orange(Node):
     def check_collision(self, msg):
         collision_threshold = 0.1
         width = msg.width
+        self.get_logger.error(width)
         height = msg.height
         depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         avg_ctr_nine = np.mean(depth_image[width//2][height//2]+depth_image[width//2+1][height//2]+depth_image[width//2][height//2+1]+depth_image[width//2+1][height//2+1]+depth_image[width//2-1][height//2]+depth_image[width//2][height//2-1]+depth_image[width//2-1][height//2-1]+depth_image[width//2-1][height//2+1]+depth_image[width//2+1][height//2-1])
         if avg_ctr_nine > collision_threshold:
             self.get_logger().info("HIT DETECTED")
             self.collision = False
+            self.get_logger.info("COLLISION!!!")
         else:
             self.collision = True
 
