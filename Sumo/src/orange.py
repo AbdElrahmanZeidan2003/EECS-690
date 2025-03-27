@@ -12,6 +12,7 @@ class Orange(Node):
         super().__init__('orange')
         self.safety = False
         self.collision = False
+        self.left_left = False
         self.subscription = self.create_subscription(Image, '/ascamera/camera_publisher/rgb0/image', self.image_callback, 1)
         self.bridge = CvBridge()
 
@@ -60,13 +61,21 @@ class Orange(Node):
                 # bounding box of the largest orange region
                 x, y, w, h = cv2.boundingRect(largest_contour)
                 self.get_logger().info(f'Center of orange region: ({cx}), Width: {w}')
+                if cx <= (640/2):
+                    self.left_left = True
+                else:
+                    self.left_left = False
+
                 if self.collision == True:
                     self.publish_twist_message(-2.0, 0.0, self.calc_rotation(cx))
                 else:
                     self.publish_twist_message(2.0, 0.0, self.calc_rotation(cx))
             else:
                 self.get_logger().info('No valid orange region found')
-                self.publish_twist_message(0.0, 0.0, 2)
+                if self.left_left:
+                    self.publish_twist_message(0.0, 0.0, -2.0)
+                else:
+                    self.publish_twist_message(0.0, 0.0, 2.0)
         else:
             self.get_logger().info('No orange pixels detected')
         
@@ -83,11 +92,11 @@ class Orange(Node):
         #distance from center of frame
         dcenter = x-(resolution/2)
         #maximum speed of turn
-        max_angular = 4.0
+        max_angular = 2.0
 
         if abs(dcenter)<=center_range:
             #avoid div by zero
-            if dcenter == 0:
+            if dcenter<=15:
                 rotate_speed = 0
             #point is in center range
             else:
@@ -111,12 +120,13 @@ class Orange(Node):
         self.angle_pub.publish(ang_msg)
 
     def check_collision(self, msg):
-        collision_threshold = 0.02
+        collision_threshold = 0.1
         width = msg.width
         height = msg.height
         depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
         avg_ctr_nine = np.mean(depth_image[width//2][height//2]+depth_image[width//2+1][height//2]+depth_image[width//2][height//2+1]+depth_image[width//2+1][height//2+1]+depth_image[width//2-1][height//2]+depth_image[width//2][height//2-1]+depth_image[width//2-1][height//2-1]+depth_image[width//2-1][height//2+1]+depth_image[width//2+1][height//2-1])
         if avg_ctr_nine > collision_threshold:
+            self.get_logger().info("HIT DETECTED")
             self.collision = False
         else:
             self.collision = True
