@@ -87,7 +87,7 @@ class SafetyNode(Node):
             else:
                 self.get_logger().info('[SAFETY] Exiting safety mode')
 
-    def publish_safety(self, is_danger):  # kept for compatibility (you can remove this if unused)
+    def publish_safety(self, is_danger):  # kept for compatibility
         self.set_safety_state(is_danger)
 
 
