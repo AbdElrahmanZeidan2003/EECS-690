@@ -18,7 +18,7 @@ class Orange(Node):
 
         self.safety_sub = self.create_subscription(Bool, '/safety', self.safety_callback, 1)
 
-        self.drive_pub = self.create_publisher(Twist, '/cmd_vel', 1)
+        self.drive_pub = self.create_publisher(Twist, '/controller/cmd_vel', 1)
         
         self.angle_pub = self.create_publisher(Float32, '/ang', 1)
 
