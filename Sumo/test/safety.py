@@ -14,7 +14,7 @@ class SafetyNode(Node):
         self.in_safety_mode = False
         self.last_safety_time = 0.0
 
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/controller/cmd_vel', 10)
         self.safety_pub = self.create_publisher(Bool, '/safety', 10)
 
         self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, 10)
