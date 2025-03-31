@@ -13,14 +13,13 @@ class SafetyNode(Node):
         self.last_ang = 0.0
         self.in_safety_mode = False
         self.last_safety_time = 0.0  # Cooldown timer
+        self.orange_seen = False #new
 
         self.cmd_pub = self.create_publisher(Twist, '/controller/cmd_vel', 10)
         self.safety_pub = self.create_publisher(Bool, '/safety', 10)
         self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, 10)
         self.angle_sub = self.create_subscription(Float32, '/ang', self.angle_callback, 10)
-
-        self.orange_seen = False
-        self.orange_sub = self.create_subscription(Bool, '/orange_seen', self.orange_callback, 10)
+        self.orange_sub = self.create_subscription(Bool, '/orange_seen', self.orange_callback, 10) #new
     def lidar_callback(self, msg):
         valid_ranges = [(i, r) for i, r in enumerate(msg.ranges) if 0.05 < r < msg.range_max]
         if not valid_ranges:
@@ -33,12 +32,18 @@ class SafetyNode(Node):
             self.publish_safety(True)
             self.avoid_obstacle(msg)
         else:
-            if self.in_safety_mode and time.time() - self.last_safety_time > 1.0 and abs(self.last_ang) < 0.2:
-                self.get_logger().info('Target aligned — exiting safety mode')
+            if self.in_safety_mode and (
+                (self.orange_seen and abs(self.last_ang) < 0.5) or
+                time.time() - self.last_safety_time > 1.0
+            ):
+                self.get_logger().info('[SAFETY] Orange reacquired — exiting safety mode')
                 self.publish_safety(False)
 
     def angle_callback(self, msg):
         self.last_ang = msg.data
+    
+    def orange_callback(self, msg):  #new
+        self.orange_seen = msg.data
 
     def avoid_obstacle(self, scan_msg):
         def angle_to_index(angle_rad):
