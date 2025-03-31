@@ -19,6 +19,8 @@ class SafetyNode(Node):
         self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, 10)
         self.angle_sub = self.create_subscription(Float32, '/ang', self.angle_callback, 10)
 
+        self.orange_seen = False
+        self.orange_sub = self.create_subscription(Bool, '/orange_seen', self.orange_callback, 10)
     def lidar_callback(self, msg):
         valid_ranges = [(i, r) for i, r in enumerate(msg.ranges) if 0.05 < r < msg.range_max]
         if not valid_ranges:

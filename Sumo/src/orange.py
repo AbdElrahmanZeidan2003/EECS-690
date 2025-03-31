@@ -24,7 +24,8 @@ class Orange(Node):
         self.angle_pub = self.create_publisher(Float32, '/ang', 1)
 
         self.depth_sub = self.create_subscription(Image, '/ascamera/camera_publisher/depth0/image', self.check_collision, 1)
-        
+        # new
+        self.orange_seen_pub = self.create_publisher(Bool, '/orange_seen', 1)
     def safety_callback(self, msg):
         if msg.data == True:
             self.safety = True
@@ -52,6 +53,8 @@ class Orange(Node):
         # Find contours of the orange regions
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
+            #new
+            self.orange_seen_pub.publish(Bool(data=True)) 
             # Find the largest contour based on area
             largest_contour = max(contours, key=cv2.contourArea)
             M = cv2.moments(largest_contour)
@@ -80,6 +83,8 @@ class Orange(Node):
                 else:
                     self.publish_twist_message(0.0, 0.0, 2.0)
         else:
+            #new
+            self.orange_seen_pub.publish(Bool(data=False))
             self.publish_twist_message(0.0, 0.0, 2)         # lost without known direction
 
         # Reset tracker
