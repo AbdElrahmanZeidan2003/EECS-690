@@ -68,19 +68,19 @@ class SafetyNode(Node):
         twist = Twist()
 
         if closest_dir == 'front':
-            twist.linear.x = -0.15
-            twist.angular.z = 1.5
+            twist.linear.x = -0.3
+            twist.angular.z = 2.5
             self.get_logger().info('[ESCAPE] Danger in FRONT — backing up and turning')
         elif closest_dir == 'left':
             twist.linear.x = 0.0
-            twist.angular.z = -1.5
+            twist.angular.z = -2.5
             self.get_logger().info('[ESCAPE] Danger on LEFT — turning right')
         elif closest_dir == 'right':
             twist.linear.x = 0.0
-            twist.angular.z = 1.5
+            twist.angular.z = 2.5
             self.get_logger().info('[ESCAPE] Danger on RIGHT — turning left')
         elif closest_dir == 'back':
-            twist.linear.x = 0.15
+            twist.linear.x = 0.3
             twist.angular.z = 0.0
             self.get_logger().info('[ESCAPE] Danger in BACK — moving forward')
 
