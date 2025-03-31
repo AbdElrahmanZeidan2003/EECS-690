@@ -43,33 +43,41 @@ class SafetyNode(Node):
             return max(0, min(len(scan_msg.ranges) - 1,
                               int((angle_rad - scan_msg.angle_min) / scan_msg.angle_increment)))
 
-        # HYBRID: Wider sector coverage but still simple
-        sectors = {
-            'back': list(range(angle_to_index(math.radians(130)), angle_to_index(math.radians(-130)))),
-            'left': list(range(angle_to_index(math.radians(60)), angle_to_index(math.radians(120)))),
-            'right': list(range(angle_to_index(math.radians(-120)), angle_to_index(math.radians(-60))))
+        # Explicit directional strategy
+        directions = {
+            'front': angle_to_index(0.0),
+            'left': angle_to_index(math.radians(90)),
+            'right': angle_to_index(math.radians(-90)),
+            'back': angle_to_index(math.radians(180)) if scan_msg.angle_max > math.pi else angle_to_index(math.radians(-180))
         }
 
-        sector_max = {}
-        for name, indices in sectors.items():
-            valid_readings = [(i, scan_msg.ranges[i]) for i in indices
-                              if 0.05 < scan_msg.ranges[i] < scan_msg.range_max]
-            if valid_readings:
-                max_i, max_r = max(valid_readings, key=lambda x: x[1])
-                angle = scan_msg.angle_min + max_i * scan_msg.angle_increment
-                sector_max[name] = (angle, max_r)
+        distances = {}
+        for name, i in directions.items():
+            d = scan_msg.ranges[i]
+            distances[name] = d if 0.05 < d < scan_msg.range_max else float('inf')
 
-        if sector_max:
-            best_sector = max(sector_max.items(), key=lambda x: x[1][1])
-            best_angle = best_sector[1][0]
-            self.get_logger().info(f"[SAFETY] Escaping toward {best_sector[0]} at {best_angle:.2f} rad")
+        closest_dir, closest_dist = min(distances.items(), key=lambda x: x[1])
 
-            twist = Twist()
+        twist = Twist()
+
+        if closest_dir == 'front':
+            twist.linear.x = -0.15
+            twist.angular.z = 1.5
+            self.get_logger().info('[ESCAPE] Danger in FRONT — backing up and turning')
+        elif closest_dir == 'left':
+            twist.linear.x = 0.0
+            twist.angular.z = -1.5
+            self.get_logger().info('[ESCAPE] Danger on LEFT — turning right')
+        elif closest_dir == 'right':
+            twist.linear.x = 0.0
+            twist.angular.z = 1.5
+            self.get_logger().info('[ESCAPE] Danger on RIGHT — turning left')
+        elif closest_dir == 'back':
             twist.linear.x = 0.15
-            twist.angular.z = best_angle
-            self.cmd_pub.publish(twist)
-        else:
-            self.get_logger().warn("[SAFETY] No valid escape direction found.")
+            twist.angular.z = 0.0
+            self.get_logger().info('[ESCAPE] Danger in BACK — moving forward')
+
+        self.cmd_pub.publish(twist)
 
     def publish_safety(self, is_danger):
         if is_danger != self.in_safety_mode:
