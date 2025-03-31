@@ -108,10 +108,10 @@ class Orange(Node):
                 rotate_speed = 0
             #point is in center range
             else:
-                rotate_speed = (dcenter/16)*max_angular
+                rotate_speed = sqrt(dcenter)/16*max_angular
 
         else:
-            rotate_speed = -max_angular*(dcenter/8)
+            rotate_speed = -max_angular*(sqrt(dcenter)/8)
         
         return rotate_speed
 
