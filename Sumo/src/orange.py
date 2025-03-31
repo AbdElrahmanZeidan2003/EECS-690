@@ -6,6 +6,7 @@ from std_msgs.msg import Bool, Float32
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
+from math import sqrt
 
 class Orange(Node):
     def __init__(self):
@@ -108,10 +109,10 @@ class Orange(Node):
                 rotate_speed = 0
             #point is in center range
             else:
-                rotate_speed = sqrt(dcenter)/16*max_angular
+                rotate_speed = sqrt(abs(dcenter))/16*max_angular
 
         else:
-            rotate_speed = -max_angular*(sqrt(dcenter)/8)
+            rotate_speed = -max_angular*(sqrt(abs(dcenter))/8)
         
         return rotate_speed
 
