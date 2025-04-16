@@ -1,0 +1,8 @@
+slam_toolbox:
+  ros__parameters:
+    mode: "mapping"
+    use_scan_matching: true
+    resolution: 0.05
+    max_laser_range: 3.5
+    minimum_travel_distance: 0.2
+    transform_publish_period: 0.05
