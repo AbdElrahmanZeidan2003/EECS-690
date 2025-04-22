@@ -11,7 +11,7 @@ def generate_launch_description():
             name='slam_toolbox',
             output='screen',
             parameters=[{
-                'slam_params_file': '/home/YOUR_USERNAME/ros2_ws/src/class_pkg/config/slam_config.yaml',
+                'slam_params_file': '/home/ubuntu/ros2_ws/src/class_pkg/config/slam_config.yaml',
                 'use_sim_time': False
             }],
             remappings=[('/scan', '/scan_raw')]
