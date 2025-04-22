@@ -17,16 +17,13 @@ class MazeExplorer(Node):
         self.image_sub = self.create_subscription(Image, '/camera/image_raw', self.image_callback, 10)
         self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, 10)
         self.cmd_pub = self.create_publisher(Twist, '/controller/cmd_vel', 10)
-
         self.bridge = CvBridge()
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-
         self.latest_scan = None
         self.goal_pose = None
         self.goal_reached = False
         self.blue_seen = False
-
         self.timer = self.create_timer(0.3, self.main_loop)
 
     def lidar_callback(self, msg):
@@ -35,8 +32,6 @@ class MazeExplorer(Node):
     def image_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-
-        # Replace these with your confirmed LAB values
         lower_blue = np.array([0, 0, 0])
         upper_blue = np.array([255, 255, 104])
         mask = cv2.inRange(lab, lower_blue, upper_blue)
@@ -47,7 +42,7 @@ class MazeExplorer(Node):
             if pose:
                 self.goal_pose = pose
                 self.blue_seen = True
-                self.get_logger().info("Blue paper detected — goal pose saved")
+                self.get_logger().info("Blue paper detected")
 
     def main_loop(self):
         if not self.blue_seen:
@@ -56,36 +51,31 @@ class MazeExplorer(Node):
             self.drive_to_goal()
 
     def explore_step(self):
-    twist = Twist()
-    if not self.latest_scan:
-        twist.linear.x = 0.05
+        twist = Twist()
+        if not self.latest_scan:
+            twist.linear.x = 0.05
+            self.cmd_pub.publish(twist)
+            return
+        ranges = self.latest_scan.ranges
+        n = len(ranges)
+        front = min(ranges[0:10] + ranges[-10:])
+        right = min(ranges[n//4 - 5 : n//4 + 5])      # 90°
+        front_right = min(ranges[n//8 - 5 : n//8 + 5])  # 45°
+        wall_distance = 0.35
+        stop_threshold = 0.25
+        if front < stop_threshold:
+            twist.angular.z = 0.5
+            twist.linear.x = 0.0
+        elif right > wall_distance:
+            twist.angular.z = -0.3
+            twist.linear.x = 0.05
+        elif front_right < stop_threshold:
+            twist.angular.z = 0.3
+            twist.linear.x = 0.05
+        else:
+            twist.linear.x = 0.15
+            twist.angular.z = 0.0
         self.cmd_pub.publish(twist)
-        return
-    ranges = self.latest_scan.ranges
-    n = len(ranges)
-    front = min(ranges[0:10] + ranges[-10:])
-    right = min(ranges[n//4 - 5 : n//4 + 5])      # 90°
-    front_right = min(ranges[n//8 - 5 : n//8 + 5])  # 45°
-    wall_distance = 0.35
-    stop_threshold = 0.25
-    if front < stop_threshold:
-        # Wall ahead — turn left
-        twist.angular.z = 0.5
-        twist.linear.x = 0.0
-    elif right > wall_distance:
-        # No wall on the right — turn right to follow it
-        twist.angular.z = -0.3
-        twist.linear.x = 0.05
-    elif front_right < stop_threshold:
-        # Diagonal wall — steer left a bit
-        twist.angular.z = 0.3
-        twist.linear.x = 0.05
-    else:
-        # Path clear — go forward
-        twist.linear.x = 0.15
-        twist.angular.z = 0.0
-    self.cmd_pub.publish(twist)
-
 
     def drive_to_goal(self):
         try:
@@ -98,7 +88,6 @@ class MazeExplorer(Node):
             angle = math.atan2(dy, dx)
             yaw = self.get_yaw_from_quaternion(trans.transform.rotation)
             error = angle - yaw
-
             twist = Twist()
             if distance > 0.2:
                 twist.linear.x = 0.1
@@ -129,7 +118,7 @@ class MazeExplorer(Node):
         except Exception as e:
             self.get_logger().warn(f"TF lookup failed: {e}")
             return None
-
+        
 def main(args=None):
     rclpy.init(args=args)
     node = MazeExplorer()
