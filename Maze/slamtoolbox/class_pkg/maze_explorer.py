@@ -21,43 +21,33 @@ class MazeExplorer(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.timer = self.create_timer(0.5, self.explore_step)
-        # State flags
-        self.started = False  # red seen
-        self.goal_sent = False  # blue goal sent
-        self.seen_blue = False
         self.latest_scan = None
+        self.goal_sent = False  # Only navigate once
 
     def lidar_callback(self, msg):
         self.latest_scan = msg
-
     def image_callback(self, msg):
-        frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        # Detect RED
-        red_mask = cv2.inRange(hsv, np.array([0, 100, 100]), np.array([10, 255, 255]))
-        red_area = cv2.countNonZero(red_mask)
-        if red_area > 500 and not self.started:
-            self.get_logger().info('Red paper detected — starting maze exploration')
-            self.started = True
-        # Detect BLUE
-        blue_mask = cv2.inRange(hsv, np.array([100, 150, 50]), np.array([140, 255, 255]))
-        blue_area = cv2.countNonZero(blue_mask)
-        if blue_area > 500 and not self.goal_sent:
-            self.get_logger().info('Blue paper detected! Getting position to send goal.')
-            self.seen_blue = True
-
-    def explore_step(self):
-        if not self.started or self.goal_sent:
+        try:
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        except Exception as e:
+            self.get_logger().error(f"Failed to convert image: {e}")
             return
-
-        if self.seen_blue:
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        # Need to double check this 
+        lower_blue = np.array([0, 130, 160])
+        upper_blue = np.array([255, 170, 210])
+        mask = cv2.inRange(lab, lower_blue, upper_blue)
+        blue_area = cv2.countNonZero(mask)
+        if blue_area > 500 and not self.goal_sent:
+            self.get_logger().info('🟦 Blue paper detected (LAB) — navigating to current location...')
             goal_pose = self.get_current_pose()
             if goal_pose:
                 self.navigator.goToPose(goal_pose)
-                self.get_logger().info('Sent navigation goal to blue paper location!')
                 self.goal_sent = True
-            return
-        # Simple explore logic: go forward if clear, turn if blocked
+
+    def explore_step(self):
+        if self.goal_sent:
+            return  # Stop exploring once navigating to goal
         twist = Twist()
         if self.latest_scan:
             front_ranges = self.latest_scan.ranges[0:10] + self.latest_scan.ranges[-10:]
@@ -65,10 +55,10 @@ class MazeExplorer(Node):
             if min_front > 0.4:
                 twist.linear.x = 0.15
             else:
-                twist.angular.z = random.choice([-1.0, 1.0])  # turn randomly
+                twist.angular.z = random.choice([-1.0, 1.0])
                 twist.linear.x = 0.0
         else:
-            twist.linear.x = 0.1  # move gently if no scan yet
+            twist.linear.x = 0.1  # move forward slowly if no LiDAR yet
         self.cmd_pub.publish(twist)
 
     def get_current_pose(self):
@@ -81,9 +71,8 @@ class MazeExplorer(Node):
             pose.pose.orientation = trans.transform.rotation
             return pose
         except Exception as e:
-            self.get_logger().warn(f'TF error: {e}')
+            self.get_logger().warn(f"TF lookup failed: {e}")
             return None
-
 
 def main(args=None):
     rclpy.init(args=args)

@@ -9,14 +9,15 @@ def generate_launch_description():
             name='slam_toolbox',
             output='screen',
             parameters=[{
-                'slam_params_file': '...', #find out what is the path for this
+                'slam_params_file': '/.../slam_config.yaml', #find path to this file 
                 'use_sim_time': False
             }],
             remappings=[('/scan', '/scan_raw')]
         ),
         Node(
-            package='hiwonder_nav',
-            executable='main_node',
+            package='class_pkg',
+            executable='maze_explorer',
+            name='maze_explorer',
             output='screen'
         )
     ])

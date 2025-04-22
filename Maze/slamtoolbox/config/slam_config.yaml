@@ -6,3 +6,4 @@ slam_toolbox:
     max_laser_range: 3.5
     minimum_travel_distance: 0.2
     transform_publish_period: 0.05
+
