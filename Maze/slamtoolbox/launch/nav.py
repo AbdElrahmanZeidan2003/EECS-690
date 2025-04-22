@@ -20,7 +20,7 @@ def generate_launch_description():
             name = 'nav2_bringup',
             output = 'screen',
             arguments = ['--ros-args', '--log-level', 'info'],
-            parameters[{'use_sim_time' : False}]
+            parameters = [{'use_sim_time' : False}]
         ),
         Node(
             package='class_pkg',
