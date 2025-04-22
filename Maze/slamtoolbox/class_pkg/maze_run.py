@@ -1,61 +1,59 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import LaserScan, Image
+from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Twist, PoseStamped
 from cv_bridge import CvBridge
-import tf2_ros
-import cv2
 import numpy as np
-import yaml
-import subprocess
-import math
-import os
+import cv2
+import tf2_ros
 import random
+import math
+import yaml
+import os
 
-class MazeRunner(Node):
+class MazeExplorer(Node):
     def __init__(self):
-        super().__init__('maze_runner')
-        self.bridge = CvBridge()
+        super().__init__('maze_explorer')
         self.image_sub = self.create_subscription(Image, '/camera/image_raw', self.image_callback, 10)
         self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, 10)
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/controller/cmd_vel', 10)
+
+        self.bridge = CvBridge()
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
         self.latest_scan = None
         self.goal_pose = None
-        self.goal_saved = False
-        self.reached = False
-        self.phase = 'exploring'  # phases: exploring → saving_map → navigating → done
+        self.goal_reached = False
+        self.blue_seen = False
+
         self.timer = self.create_timer(0.3, self.main_loop)
 
     def lidar_callback(self, msg):
         self.latest_scan = msg
+
     def image_callback(self, msg):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+
+        # Replace these with your confirmed LAB values
         lower_blue = np.array([0, 0, 0])
         upper_blue = np.array([255, 255, 104])
         mask = cv2.inRange(lab, lower_blue, upper_blue)
         blue_area = cv2.countNonZero(mask)
-        if blue_area > 500 and not self.goal_saved:
+
+        if blue_area > 500 and not self.blue_seen:
             pose = self.get_current_pose()
             if pose:
                 self.goal_pose = pose
-                self.save_goal_pose(pose)
-                self.goal_saved = True
-                self.get_logger().info("Blue detected — saved pose. Switching to map save phase.")
-                self.phase = 'saving_map'
+                self.blue_seen = True
+                self.get_logger().info("Blue paper detected — goal pose saved")
 
     def main_loop(self):
-        if self.phase == 'exploring':
+        if not self.blue_seen:
             self.explore_step()
-        elif self.phase == 'saving_map':
-            self.save_map()
-            self.phase = 'navigating'
-        elif self.phase == 'navigating':
+        elif not self.goal_reached:
             self.drive_to_goal()
-        elif self.phase == 'done':
-            pass
 
     def explore_step(self):
         twist = Twist()
@@ -81,8 +79,6 @@ class MazeRunner(Node):
         self.cmd_pub.publish(twist)
 
     def drive_to_goal(self):
-        if not self.goal_pose or self.reached:
-            return
         try:
             trans = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
             x = trans.transform.translation.x
@@ -99,11 +95,10 @@ class MazeRunner(Node):
                 twist.linear.x = 0.1
                 twist.angular.z = error
             else:
+                self.goal_reached = True
                 twist.linear.x = 0.0
                 twist.angular.z = 0.0
-                self.reached = True
-                self.phase = 'done'
-                self.get_logger().info("Goal reached.")
+                self.get_logger().info("🎯 Reached blue paper.")
             self.cmd_pub.publish(twist)
         except Exception as e:
             self.get_logger().warn(f"TF lookup failed: {e}")
@@ -126,33 +121,9 @@ class MazeRunner(Node):
             self.get_logger().warn(f"TF lookup failed: {e}")
             return None
 
-    def save_goal_pose(self, pose):
-        goal_dict = {
-            'position': {
-                'x': pose.pose.position.x,
-                'y': pose.pose.position.y
-            },
-            'orientation': {
-                'z': pose.pose.orientation.z,
-                'w': pose.pose.orientation.w
-            }
-        }
-        path = '/home/YOUR_USERNAME/ros2_ws/src/class_pkg/config/slam_config.yaml'
-        with open(path, 'w') as f:
-            yaml.dump(goal_dict, f)
-
-    def save_map(self):
-        self.get_logger().info("Saving map using map_saver_cli...")
-        map_path = '/home/YOUR_USERNAME/ros2_ws/src/class_pkg/config/map'
-        try:
-            subprocess.run(['ros2', 'run', 'nav2_map_server', 'map_saver_cli', '-f', map_path], check=True)
-            self.get_logger().info(" Map saved.")
-        except Exception as e:
-            self.get_logger().error(f"Map saving failed: {e}")
-
 def main(args=None):
     rclpy.init(args=args)
-    node = MazeRunner()
+    node = MazeExplorer()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
