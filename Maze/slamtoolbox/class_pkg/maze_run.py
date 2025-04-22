@@ -56,27 +56,36 @@ class MazeExplorer(Node):
             self.drive_to_goal()
 
     def explore_step(self):
-        twist = Twist()
-        if self.latest_scan:
-            ranges = self.latest_scan.ranges
-            num = len(ranges)
-            front = min(ranges[0:10] + ranges[-10:])
-            right = min(ranges[num//4-10:num//4+10])
-            fr = min(ranges[num//8-5:num//8+5])
-
-            if front < 0.25:
-                twist.angular.z = 0.5
-            elif right > 0.35:
-                twist.angular.z = -0.3
-                twist.linear.x = 0.05
-            elif fr < 0.25:
-                twist.angular.z = 0.3
-                twist.linear.x = 0.05
-            else:
-                twist.linear.x = 0.15
-        else:
-            twist.linear.x = 0.05
+    twist = Twist()
+    if not self.latest_scan:
+        twist.linear.x = 0.05
         self.cmd_pub.publish(twist)
+        return
+    ranges = self.latest_scan.ranges
+    n = len(ranges)
+    front = min(ranges[0:10] + ranges[-10:])
+    right = min(ranges[n//4 - 5 : n//4 + 5])      # 90°
+    front_right = min(ranges[n//8 - 5 : n//8 + 5])  # 45°
+    wall_distance = 0.35
+    stop_threshold = 0.25
+    if front < stop_threshold:
+        # Wall ahead — turn left
+        twist.angular.z = 0.5
+        twist.linear.x = 0.0
+    elif right > wall_distance:
+        # No wall on the right — turn right to follow it
+        twist.angular.z = -0.3
+        twist.linear.x = 0.05
+    elif front_right < stop_threshold:
+        # Diagonal wall — steer left a bit
+        twist.angular.z = 0.3
+        twist.linear.x = 0.05
+    else:
+        # Path clear — go forward
+        twist.linear.x = 0.15
+        twist.angular.z = 0.0
+    self.cmd_pub.publish(twist)
+
 
     def drive_to_goal(self):
         try:
