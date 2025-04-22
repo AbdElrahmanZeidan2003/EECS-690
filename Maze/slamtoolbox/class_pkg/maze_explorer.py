@@ -14,7 +14,7 @@ class MazeExplorer(Node):
         super().__init__('maze_explorer')
         self.image_sub = self.create_subscription(Image, '/camera/image_raw', self.image_callback, 10)
         self.lidar_sub = self.create_subscription(LaserScan, '/scan_raw', self.lidar_callback, 10)
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_pub = self.create_publisher(Twist, '/controller/cmd_vel', 10)
         self.bridge = CvBridge()
         self.navigator = BasicNavigator()
         #self.navigator.waitUntilNav2Active()
@@ -34,8 +34,8 @@ class MazeExplorer(Node):
             return
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         # Need to double check this 
-        lower_blue = np.array([0, 130, 160])
-        upper_blue = np.array([255, 170, 210])
+        lower_blue = np.array([0, 0, 0])
+        upper_blue = np.array([255, 255, 104])
         mask = cv2.inRange(lab, lower_blue, upper_blue)
         blue_area = cv2.countNonZero(mask)
         if blue_area > 500 and not self.goal_sent:
