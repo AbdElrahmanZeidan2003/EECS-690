@@ -17,7 +17,7 @@ class MazeExplorer(Node):
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.bridge = CvBridge()
         self.navigator = BasicNavigator()
-        self.navigator.waitUntilNav2Active()
+        #self.navigator.waitUntilNav2Active()
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.timer = self.create_timer(0.5, self.explore_step)
@@ -39,7 +39,7 @@ class MazeExplorer(Node):
         mask = cv2.inRange(lab, lower_blue, upper_blue)
         blue_area = cv2.countNonZero(mask)
         if blue_area > 500 and not self.goal_sent:
-            self.get_logger().info('🟦 Blue paper detected (LAB) — navigating to current location...')
+            self.get_logger().info('Blue paper detected (LAB) — navigating to current location...')
             goal_pose = self.get_current_pose()
             if goal_pose:
                 self.navigator.goToPose(goal_pose)
@@ -48,16 +48,26 @@ class MazeExplorer(Node):
     def explore_step(self):
         if self.goal_sent:
             return  # Stop exploring once navigating to goal
-        twist = Twist()
         if self.latest_scan:
-            front_ranges = self.latest_scan.ranges[0:10] + self.latest_scan.ranges[-10:]
-            min_front = min(front_ranges)
-            if min_front > 0.4:
-                twist.linear.x = 0.15
+            ranges = [(i, r) for i, r in enumerate(self.latest_scan.ranges) if r > 0.05 and r < self.latest_scan.range_max]
+            num_scans = len(ranges)
+            if  10.0 >= min(ranges[num_scans//4-5:num_scans//4+5])[1]:
+                twist = Twist()
+                twist.linear.x = 0.1
+                twist.linear.y = 0.0
+                self.cmd_pub.publish(twist)
+            elif min(ranges[num_scans//4-5:num_scans//4+5])[1] <= 10.0 and min(ranges[:10])[1] >= 5.0:
+                twist = Twist()
+                twist.linear.x = 0.1
+                twist.linear.y = 0.1
+                self.cmd_pub.publish(twist)
             else:
-                twist.angular.z = random.choice([-1.0, 1.0])
-                twist.linear.x = 0.0
+                twist = Twist()
+                twist.linear.x = 0.1
+                twist.linear.y = -0.1
+                self.cmd_pub.publish(twist)
         else:
+            twist = Twist()
             twist.linear.x = 0.1  # move forward slowly if no LiDAR yet
         self.cmd_pub.publish(twist)
 
@@ -80,3 +90,4 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
