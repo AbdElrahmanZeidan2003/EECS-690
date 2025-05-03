@@ -1,21 +1,28 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from std_msgs.msg import String
+from std_msgs.msg import String, Float32
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
-import cv2
 import numpy as np
+import cv2
+from math import sqrt
+
+def calc_rotation(x, resolution=640):
+    dcenter = x - resolution / 2
+    if abs(dcenter) <= resolution / 5:
+        return 0.0 if abs(dcenter) <= 15 else sqrt(abs(dcenter)) / 16 * 2.0
+    return -2.0 * (sqrt(abs(dcenter)) / 8)
 
 class DefendNode(Node):
     def __init__(self):
         super().__init__('defend_node')
+        self.bridge = CvBridge()
         self.mode = ""
         self.sub_cmd = self.create_subscription(String, '/cmd_strat', self.cmd_callback, 10)
         self.sub_image = self.create_subscription(Image, '/camera/image_raw', self.image_callback, 10)
-        self.pub = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.bridge = CvBridge()
-        self.center = 320
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.ang_pub = self.create_publisher(Float32, '/ang', 10)
 
     def cmd_callback(self, msg):
         self.mode = msg.data
@@ -25,24 +32,21 @@ class DefendNode(Node):
             return
         frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, (45, 100, 100), (75, 255, 255))  # green
-        contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        lower_green = np.array([45, 100, 100])
+        upper_green = np.array([75, 255, 255])
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         twist = Twist()
-
         if contours:
             largest = max(contours, key=cv2.contourArea)
-            x, y, w, h = cv2.boundingRect(largest)
+            x, _, w, _ = cv2.boundingRect(largest)
             cx = x + w // 2
-            error = self.center - cx
-            twist.linear.x = -0.2
-            twist.angular.z = -0.002 * error
-        else:
-            twist.angular.z = -0.3
-
-        self.pub.publish(twist)
+            twist.linear.x = -2.0
+            twist.angular.z = calc_rotation(cx)
+        self.cmd_pub.publish(twist)
+        self.ang_pub.publish(Float32(data=twist.angular.z))
 
 def main(args=None):
     rclpy.init(args=args)
-    node = DefendNode()
-    rclpy.spin(node)
+    rclpy.spin(DefendNode())
     rclpy.shutdown()

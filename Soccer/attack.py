@@ -1,46 +1,61 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from std_msgs.msg import String
+from std_msgs.msg import String, Float32
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
-import cv2
 import numpy as np
+import cv2
+from math import sqrt
+
+def calc_rotation(x, resolution=640):
+    dcenter = x - resolution / 2
+    if abs(dcenter) <= resolution / 5:
+        return 0.0 if abs(dcenter) <= 15 else sqrt(abs(dcenter)) / 16 * 2.0
+    return -2.0 * (sqrt(abs(dcenter)) / 8)
 
 class AttackNode(Node):
     def __init__(self):
         super().__init__('attack_node')
+        self.bridge = CvBridge()
         self.mode = ""
+        self.safety = False
         self.sub_cmd = self.create_subscription(String, '/cmd_strat', self.cmd_callback, 10)
         self.sub_image = self.create_subscription(Image, '/camera/image_raw', self.image_callback, 10)
-        self.pub = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.bridge = CvBridge()
-        self.center = 320
+        self.sub_depth = self.create_subscription(Image, '/camera/depth/image_raw', self.depth_callback, 10)
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.ang_pub = self.create_publisher(Float32, '/ang', 10)
 
     def cmd_callback(self, msg):
         self.mode = msg.data
+
+    def depth_callback(self, msg):
+        depth = self.bridge.imgmsg_to_cv2(msg, "passthrough")
+        h, w = depth.shape
+        region = [depth[h//2+i, w//2+j] for i in [-1,0,1] for j in [-1,0,1]]
+        self.safety = np.mean(region) < 0.1
+
     def image_callback(self, msg):
         if self.mode != "ATTACK":
             return
         frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, (130, 50, 50), (160, 255, 255))  # purple
-        contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        lower_purple = np.array([130, 50, 50])
+        upper_purple = np.array([160, 255, 255])
+        mask = cv2.inRange(hsv, lower_purple, upper_purple)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         twist = Twist()
         if contours:
             largest = max(contours, key=cv2.contourArea)
-            x, y, w, h = cv2.boundingRect(largest)
+            x, _, w, _ = cv2.boundingRect(largest)
             cx = x + w // 2
-            error = self.center - cx
-            twist.linear.x = 0.2
-            twist.angular.z = -0.002 * error
-        else:
-            twist.angular.z = 0.3
+            twist.linear.x = -2.0 if self.safety else 2.0
+            twist.angular.z = calc_rotation(cx)
 
-        self.pub.publish(twist)
+        self.cmd_pub.publish(twist)
+        self.ang_pub.publish(Float32(data=twist.angular.z))
 
 def main(args=None):
     rclpy.init(args=args)
-    node = AttackNode()
-    rclpy.spin(node)
+    rclpy.spin(AttackNode())
     rclpy.shutdown()
